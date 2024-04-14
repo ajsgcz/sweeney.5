@@ -1,305 +1,118 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include <string.h>
-#include <getopt.h>
-#include <signal.h>
-#include <time.h>
-#include <sys/types.h>
 #include <sys/ipc.h>
-#include <sys/shm.h>
-#include <semaphore.h>
-#include <fcntl.h>
-#define THRESHOLD 10
-#define BOUND 500
+#include <sys/msg.h>
+#include <time.h>
+#include "header.h"
 
-struct timer
-{
-	unsigned int seconds;
-	unsigned int ns;
-};
+#define MAX_INTERVAL 1000 // Define the maximum interval in milliseconds
+#define REQUEST_TYPE 1 // Message type for resource requests
+#define RELEASE_TYPE 2 // Message type for resource releases
 
-struct resource
-{
-	unsigned int maxAmt;
-	unsigned int available;
-	unsigned int request;
-	unsigned int allocation;
-	unsigned int release;
-	unsigned int reqArray[18];
-	unsigned int allArray[18];
-	unsigned int relArray[18];
-	int shared;
-};
 
-int errno;
-int myIndex;
-pid_t pid;
-char errmsg[200];
-struct timer *shmTime;
-int *shmChild;
-int *shmTerm;
-struct resource *shmRes;
-sem_t * semDead;
-sem_t * semTerm;
-sem_t * semChild;
-
-/* Insert other shmid values here */
-
-void sigIntHandler(int signum)
-{
-	int i;
-	
-	snprintf(errmsg, sizeof(errmsg), "USER %d: Caught SIGINT! Killing process #%d.", pid, myIndex);
-	perror(errmsg);	
-	
-	for(i = 0; i < 20; i++)
-	{
-		shmRes[i].relArray[myIndex] = shmRes[i].allArray[myIndex];
-		shmRes[i].reqArray[myIndex] = 0;
-	}
-	
-	sem_wait(semTerm);
-	shmTerm[myIndex] = 1;
-	shmTerm[19]++;
-	sem_post(semTerm);
-	
-	sem_post(semDead);
-	
-	errno = shmdt(shmTime);
-	if(errno == -1)
-	{
-		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmTime)", pid);
-		perror(errmsg);	
-	}
-
-	errno = shmdt(shmChild);
-	if(errno == -1)
-	{
-		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmChild)", pid);
-		perror(errmsg);	
-	}
-	
-	errno = shmdt(shmTerm);
-	if(errno == -1)
-	{
-		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmTerm)", pid);
-		perror(errmsg);	
-	}
-	
-	errno = shmdt(shmRes);
-	if(errno == -1)
-	{
-		snprintf(errmsg, sizeof(errmsg), "USER %d: shmdt(shmRes)", pid);
-		perror(errmsg);	
-	}
-	exit(signum);
+int generateRandomInterval() {
+    return rand() % (MAX_INTERVAL + 1); // Add 1 to include MAX_INTERVAL
+}
+// Function to request resources
+void requestResources() {
+    // Implement logic to request resources
+     printf("Requesting resources...\n");
+    // Request resources here...
 }
 
-int main (int argc, char *argv[]) {
-int o;
-int i;
-int terminate = 0;
-struct timer termTime;
-struct timer reqlTime;
-int timeKey = atoi(argv[1]);
-int childKey = atoi(argv[2]);
-int index = atoi(argv[3]);
-myIndex = index;
-int termKey = atoi(argv[4]);
-int resKey = atoi(argv[5]);
-key_t keyTime = 8675;
-key_t keyChild = 5309;
-key_t keyTerm = 1138;
-key_t keyRes = 8311;
-signal(SIGINT, sigIntHandler);
-pid = getpid();
-unsigned int nextRes;
+void sendRequestMessage(int msqid, int resourceType) {
+    Message msg;
+    msg.type = REQUEST_TYPE;
+    msg.resourceType = resourceType;
+    // Set other message parameters if needed
 
-/* Seed random number generator */
-srand(pid * time(NULL));
-
-/* snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process started!", pid);
-perror(errmsg); */
-
-/********************MEMORY ATTACHMENT********************/
-/* Point shmTime to shared memory */
-shmTime = shmat(timeKey, NULL, 0);
-if ((void *)shmTime == (void *)-1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmat(shmidTime)");
-	perror(errmsg);
-    exit(1);
+    // Send the message
+    if (msgsnd(msqid, &msg, sizeof(Message), 0) == -1) {
+        perror("msgsnd");
+        exit(EXIT_FAILURE);
+    }
 }
 
-/* Point shmChild to shared memory */
-shmChild = shmat(childKey, NULL, 0);
-if ((void *)shmChild == (void *)-1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmat(shmidChild)");
-	perror(errmsg);
-    exit(1);
+// Function to release resources
+void releaseResources() {
+    // Implement logic to release resources
+     printf("Releasing resources...\n");
+    // Release resources here...
 }
 
-/* Point shmTerm to shared memory */
-shmTerm = shmat(termKey, NULL, 0);
-if ((void *)shmTerm == (void *)-1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmat(shmidTerm)");
-	perror(errmsg);
-    exit(1);
-}
+int main(int argc, char *argv[]) {
+  int msqid = msgget(MESSAGE_QUEUE_KEY, 0666);
+    if (msqid == -1) {
+        perror("msgget");
+        exit(EXIT_FAILURE);
+    }
+    int interval = 0;
+    char *logfile = NULL;
 
-/* Point shmRes to shared memory */
-shmRes = shmat(resKey, NULL, 0);
-if ((void *)shmRes == (void *)-1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmat(shmidRes)");
-	perror(errmsg);
-    exit(1);
-}
-/********************END ATTACHMENT********************/
+    // Parse command line arguments
+    int opt;
+    while ((opt = getopt(argc, argv, "i:f:")) != -1) {
+        switch (opt) {
+            case 'i':
+                interval = atoi(optarg); // Convert argument to integer
+                break;
+            case 'f':
+                logfile = optarg; // Set logfile path
+                break;
+            default:
+                fprintf(stderr, "Usage: %s [-i interval] [-f logfile]\n", argv[0]);
+                exit(EXIT_FAILURE);
+        }
+    }
 
-/********************SEMAPHORE CREATION********************/
-/* Open Semaphore */
-semDead=sem_open("semDead", 1);
-if(semDead == SEM_FAILED) {
-	snprintf(errmsg, sizeof(errmsg), "USER %d: sem_open(semDead)...", pid);
-	perror(errmsg);
-    exit(1);
-}
+    // Validate command line arguments
+    if (interval <= 0 || logfile == NULL) {
+        fprintf(stderr, "Interval must be a positive integer and logfile must be specified\n");
+        exit(EXIT_FAILURE);
+    }
 
-semTerm=sem_open("semTerm", 1);
-if(semTerm == SEM_FAILED) {
-	snprintf(errmsg, sizeof(errmsg), "USER %d: sem_open(semTerm)...", pid);
-	perror(errmsg);
-    exit(1);
-}
+    // Output parsed command line arguments
+    printf("Interval: %d\n", interval);
+    printf("Logfile: %s\n", logfile);
 
-semChild=sem_open("semChild", 1);
-if(semTerm == SEM_FAILED) {
-	snprintf(errmsg, sizeof(errmsg), "USER %d: sem_open(semChild)...", pid);
-	perror(errmsg);
-    exit(1);
-}
-/********************END SEMAPHORE CREATION********************/
+   // Seed the random number generator with the current time
+    srand(time(NULL));
 
-/* Calculate First Request/Release Time */
-reqlTime.ns = shmTime->ns + rand()%(BOUND);
-reqlTime.seconds = shmTime->seconds;
-if (reqlTime.ns > 1000000000)
-{
-	reqlTime.ns -= 1000000000;
-	reqlTime.seconds += 1;
-}
+    // Generate a random number between 0 and RAND_MAX
+    int random_number = rand();
 
-while(!terminate)
-{
-	if(rand()%100 <= THRESHOLD)
-	{
-		terminate = 1;
-	}
-	/* else
-	{
-		snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process continuing!", pid);
-		perror(errmsg);
-	} */
-	
-	/* Calculate Termination Time */
-	termTime.ns = shmTime->ns + rand()%250000000;
-	termTime.seconds = shmTime->seconds;
-	if (termTime.ns > 1000000000)
-	{
-		termTime.ns -= 1000000000;
-		termTime.seconds += 1;
-	}
-	
-	
+    // Print the random number
+    printf("Random number: %d\n", random_number);
+    // Main loop
+    while (1) {
+       // Generate a random time interval between 0 and MAX_INTERVAL milliseconds
+    int random_interval = rand() % (MAX_INTERVAL + 1); // Add 1 to include MAX_INTERVAL
 
-	if(reqlTime.seconds <= shmTime->seconds)
-	{
-		if(reqlTime.ns <= shmTime->ns || reqlTime.seconds < shmTime->seconds)
-		{
-			/********************ENTER CRITICAL SECTION********************/
-			/* sem_wait(semChild); */	/* P operation */
-			nextRes = rand()%20;
-			if(shmRes[nextRes].allArray[index] == 0)
-			{
-				shmRes[nextRes].reqArray[index]++;
-				while(shmRes[nextRes].reqArray[index]);
-			}
-			else
-			{
-				if(rand()%10)
-				{
-					shmRes[nextRes].reqArray[index]++;
-					while(shmRes[nextRes].reqArray[index]);
-				}
-				else
-				{
-					shmRes[nextRes].relArray[index] = shmRes[nextRes].allArray[index];
-				}
-			}
-			/* Calculate Next Request/Release Time */
-			reqlTime.ns = shmTime->ns + rand()%(BOUND);
-			reqlTime.seconds = shmTime->seconds;
-			if (reqlTime.ns > 1000000000)
-			{
-				reqlTime.ns -= 1000000000;
-				reqlTime.seconds += 1;
-			}
-			/* sem_post(semChild); */ /* V operation */  
-			/********************EXIT CRITICAL SECTION********************/
-		}
-	}
-	
-	
-	/* Wait for the system clock to pass the time */
-	while(termTime.seconds > shmTime->seconds);
-	while(termTime.ns > shmTime->ns);
-	
-}
-/* snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process sleeping!", pid);
-perror(errmsg);
-sleep(1); */
-/* signal the release the process from the running processes */
-sem_wait(semTerm);
-shmTerm[index] = 1;
-sem_post(semTerm);
-snprintf(errmsg, sizeof(errmsg), "USER %d: Slave process terminating!", pid);
-perror(errmsg);
-sem_post(semDead);
+    // Print the random time interval
+    printf("Random time interval: %d milliseconds\n", random_interval);
+        // Request or release resources based on random time
+         int interval = generateRandomInterval();
 
-/********************MEMORY DETACHMENT********************/
-errno = shmdt(shmTime);
-if(errno == -1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmdt(shmTime)");
-	perror(errmsg);	
-}
+        // Sleep for the random time interval
+        usleep(interval * 1000); // Convert milliseconds to microseconds
 
-errno = shmdt(shmChild);
-if(errno == -1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmdt(shmChild)");
-	perror(errmsg);	
-}
+        // Generate a random number to decide whether to request or release resources
+        int action = rand() % 2; // 0 for request, 1 for release
 
-errno = shmdt(shmTerm);
-if(errno == -1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmdt(shmTerm)");
-	perror(errmsg);	
-}
+        // Perform the corresponding action
+        if (action == 0) {
+            requestResources(); // Request resources
+        } else {
+            releaseResources(); // Release resources
+        }
+    }
+        // Sleep for random time interval
+        int sleep_time = rand() % BOUND;
+        usleep(sleep_time);
 
-errno = shmdt(shmRes);
-if(errno == -1)
-{
-	snprintf(errmsg, sizeof(errmsg), "USER: shmdt(shmRes)");
-	perror(errmsg);	
+	sendRequestMessage(msqid, resourceType);
+    }
+    
+    return 0;
 }
-/********************END DETACHMENT********************/
-exit(0);
-return 0;
-}
- 
