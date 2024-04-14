@@ -18,14 +18,14 @@ int generateRandomInterval() {
 void requestResources() {
     // Implement logic to request resources
      printf("Requesting resources...\n");
-    // Request resources here...
+   
 }
 
 void sendRequestMessage(int msqid, int resourceType) {
     Message msg;
     msg.type = REQUEST_TYPE;
     msg.resourceType = resourceType;
-    // Set other message parameters if needed
+    
 
     // Send the message
     if (msgsnd(msqid, &msg, sizeof(Message), 0) == -1) {
@@ -38,7 +38,7 @@ void sendRequestMessage(int msqid, int resourceType) {
 void releaseResources() {
     // Implement logic to release resources
      printf("Releasing resources...\n");
-    // Release resources here...
+   
 }
 
 int main(int argc, char *argv[]) {
