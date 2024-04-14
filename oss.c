@@ -45,9 +45,7 @@ void initializeResourceTable(ResourceDescriptor *resource_table) {
     for (int i = 0; i < NUM_RESOURCES; i++) {
         resource_table[i].totalInstances = RESOURCE_INSTANCES;
         resource_table[i].availableInstances = RESOURCE_INSTANCES;
-        // Initialize allocated and requested arrays if needed
-        // memset(resource_table[i].allocated, 0, sizeof(resource_table[i].allocated));
-        // memset(resource_table[i].requested, 0, sizeof(resource_table[i].requested));
+      
     }
 }
 
@@ -92,7 +90,7 @@ int shouldLaunchChildProcess() {
         return 0; // Do not launch a new process
     }
     
-    // Add additional conditions to determine if a new process should be launched
+    
     
     return 1; // Launch a new process
 }
